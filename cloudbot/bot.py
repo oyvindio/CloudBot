@@ -162,7 +162,7 @@ class CloudBot:
             for d in done:
                 event = yield from d
                 print("PLS PROCESS: ", d)
-                self.process(event)
+                yield from self.process(event)
 
 
     def add_network(self, network):
