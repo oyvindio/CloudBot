@@ -49,6 +49,8 @@ class IRCClient:
         self.loop = loop
         self.bot = bot
         self.network = network
+        self.config = network.config
+
         # TODO should this be a param?  a property of the network?  or, more
         # likely, channel-specific and decoded separately and...
         self.charset = 'utf8'

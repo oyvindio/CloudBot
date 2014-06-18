@@ -61,7 +61,7 @@ class CloudBot:
         self.stopped_future = asyncio.Future(loop=self.loop)
 
         # stores each bot server connection
-        self.connections = {}
+        self.connections = []
         self.networks = {}
 
         # for plugins
@@ -109,9 +109,9 @@ class CloudBot:
         self.plugin_manager = PluginManager(self)
 
     def run(self, loop):
-        asyncio.async(self._run(loop), loop=loop)
+        #asyncio.async(self._run(loop), loop=loop)
         try:
-            loop.run_forever()
+            loop.run_until_complete(self._run(loop))
         except (KeyboardInterrupt, SystemExit):
             self.stop(loop)
 
@@ -134,6 +134,8 @@ class CloudBot:
 
         # TODO less hard-coded here would be nice
         clients = []
+
+
         for network in self.networks.values():
             clients.append(network.client_class(self, loop, network))
 
@@ -161,8 +163,9 @@ class CloudBot:
             # Evaluate all the tasks that completed (probably just one)
             for d in done:
                 event = yield from d
-                print("PLS PROCESS: ", d)
-                yield from self.process(event)
+                if event:
+                    print("PLS PROCESS: ", d)
+                    yield from self.process(event)
 
 
     def add_network(self, network):
@@ -179,7 +182,7 @@ class CloudBot:
             # hardcoded, for now
             client_class = IRCClient
 
-            network = Network(name)
+            network = Network(name, conf)
             network.add_preferred_nick(conf['nick'])
 
             network.add_server(

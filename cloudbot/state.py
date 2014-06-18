@@ -10,8 +10,9 @@ class Network:
     """A single place to which you can connect.  Efnet, for example, is a
     single network, even though it has a great many servers.
     """
-    def __init__(self, name):
+    def __init__(self, name, conf):
         self.name = name
+        self.config = conf
         self.nicks = []
         self.servers = []
         self.autojoins = []
