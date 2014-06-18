@@ -59,9 +59,10 @@ def main():
     signal.signal(signal.SIGINT, exit_gracefully)
 
     # start the bot master
+    loop = asyncio.get_event_loop()
 
     # CloudBot.run() will return True if it should restart, False otherwise
-    restart = cloudbot.run()
+    restart = cloudbot.run(loop)
 
     # the bot has stopped, do we want to restart?
     if restart:

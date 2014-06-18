@@ -9,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.schema import MetaData
 
+from concurrent.futures import FIRST_COMPLETED
+
 import cloudbot
 from cloudbot.config import Config
 from cloudbot.reloader import PluginReloader
@@ -105,19 +107,62 @@ class CloudBot:
 
         self.plugin_manager = PluginManager(self)
 
-    def run(self):
-        """
-        Starts CloudBot.
-        This will load plugins, connect to IRC, and process input.
-        :return: True if CloudBot should be restarted, False otherwise
-        :rtype: bool
-        """
-        # Initializes the bot, plugins and connections
-        self.loop.run_until_complete(self._init_routine())
-        # Wait till the bot stops. The stopped_future will be set to True to restart, False otherwise
-        restart = self.loop.run_until_complete(self.stopped_future)
-        self.loop.close()
-        return restart
+    def run(self, loop):
+        asyncio.async(self._run(loop), loop=loop)
+        try:
+            loop.run_forever()
+        except (KeyboardInterrupt, SystemExit):
+            self.stop(loop)
+
+    @asyncio.coroutine
+    def _run(self, loop):
+        # Load plugins
+        yield from self.plugin_manager.load_all(os.path.abspath("plugins"))
+
+        # Run a manual garbage collection cycle, to clean up any unused objects created during initialization
+        gc.collect()
+
+        # If we we're stopped while loading plugins, cancel that and just stop
+        if not self.running:
+            logger.info("Killed while loading, exiting")
+            return
+
+        if cloudbot.dev_mode.get("plugin_reloading"):
+            # start plugin reloader
+            self.reloader.start(os.path.abspath("plugins"))
+
+        # TODO less hard-coded here would be nice
+        clients = []
+        for network in self.connections.values():
+            clients.append(network.client_class(self, loop, network))
+
+        # TODO hmm this feels slightly janky; should this all be done earlier
+        # perhaps
+        self.current_clients = clients
+
+        # TODO gracefully handle failed connections, and only bail entirely if
+        # they all fail?
+        yield from asyncio.gather(*[client.connect() for client in clients])
+
+        coros = {client: asyncio.Task(client.read_event()) for client in clients}
+        while True:
+            done, pending = yield from asyncio.wait(
+                coros.values(),
+                return_when=FIRST_COMPLETED)
+
+
+            # Replace any coros that finished with fresh ones for the next run
+            # of the loop
+            for client, coro in coros.items():
+                if coro in done:
+                    coros[client] = asyncio.Task(client.read_event())
+
+            # Evaluate all the tasks that completed (probably just one)
+            for d in done:
+                event = yield from d
+                self.process(event)
+
+
 
     def add_network(self, network):
         # TODO check for dupes!
@@ -189,41 +234,14 @@ class CloudBot:
         """shuts the bot down and restarts it"""
         yield from self.stop(reason=reason, restart=True)
 
-    @asyncio.coroutine
-    def _init_routine(self):
-        # Load plugins
-        yield from self.plugin_manager.load_all(os.path.abspath("plugins"))
 
-        # If we we're stopped while loading plugins, cancel that and just stop
-        if not self.running:
-            logger.info("Killed while loading, exiting")
-            return
 
-        if cloudbot.dev_mode.get("plugin_reloading"):
-            # start plugin reloader
-            self.reloader.start(os.path.abspath("plugins"))
-
-        # TODO less hard-coded here would be nice
-        clients = []
-        for network in self.connections.values():
-            clients.append(network.client_class(self.loop, network))
-
-        # TODO hmm this feels slightly janky; should this all be done earlier
-        # perhaps
-        self.current_clients = clients
-
-        # TODO gracefully handle failed connections, and only bail entirely if
-        # they all fail?
-        yield from asyncio.gather(*[client.connect() for client in clients])
-
-        # Run a manual garbage collection cycle, to clean up any unused objects created during initialization
-        gc.collect()
-
-    @asyncio.coroutine
     def process(self, event):
         """
         :type event: Event
         """
+        print("processing")
+
         run_before_tasks = []
         tasks = []
         command_prefix = event.conn.config.get('command_prefix', '.')

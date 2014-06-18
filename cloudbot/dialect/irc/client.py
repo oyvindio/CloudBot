@@ -7,13 +7,15 @@ import logging
 
 #from dywypi.event import Message
 #from dywypi.formatting import Bold, Color, Style
+import re
+from cloudbot.event import EventType, Event
 from cloudbot.state import Peer
 from .message import IRCMessage
 from .state import IRCChannel
 from .state import IRCMode
 from .state import IRCTopic
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # FOREGROUND_CODES = {
@@ -43,8 +45,9 @@ class IRCClient:
     coroutines.
     """
 
-    def __init__(self, loop, network):
+    def __init__(self, bot, loop, network):
         self.loop = loop
+        self.bot = bot
         self.network = network
         # TODO should this be a param?  a property of the network?  or, more
         # likely, channel-specific and decoded separately and...
@@ -158,7 +161,7 @@ class IRCClient:
             except CancelledError:
                 return
             except Exception:
-                log.exception("Smothering exception in IRC read loop")
+                logger.exception("Smothering exception in IRC read loop")
 
     @asyncio.coroutine
     def _read_message(self):
@@ -169,7 +172,7 @@ class IRCClient:
 
         # TODO valerr, unicodeerr
         message = IRCMessage.parse(line.decode(self.charset))
-        log.debug("recv: %r", message)
+        logger.debug("recv: %r", message)
 
         # TODO there is a general ongoing problem here with matching up
         # responses.  ESPECIALLY when error codes are possible.  something here
@@ -333,8 +336,57 @@ class IRCClient:
                 self._join_futures[channel_name].set_result(channel)
                 del self._join_futures[channel_name]
 
+    def _event_bridge(self, message):
+        "Takes a dywy style setup and returns a legacy event to talk to the CB event engine"
+        print(message.args)
+        print(message.prefix)
+
+        command = message.command
+        content = message.args
+        prefix = message.prefix
+        line = message.prefix + " " + message.render()
+        nick = None
+        user = None
+        host = None
+        mask = None
+        target = None
+
+        event_type = EventType.message
+
+        # Parse for CTCP
+        if event_type is EventType.message and content.count("\x01") >= 2 and content.startswith("\x01"):
+            # Remove the first \x01, then rsplit to remove the last one, and ignore text after the last \x01
+            ctcp_text = content[1:].rsplit("\x01", 1)[0]
+            ctcp_text_split = ctcp_text.split(None, 1)
+            if ctcp_text_split[0] == "ACTION":
+                # this is a CTCP ACTION, set event_type and content accordingly
+                event_type = EventType.action
+                content = ctcp_text_split[1]
+            else:
+                # this shouldn't be considered a regular message
+                event_type = EventType.other
+        else:
+            ctcp_text = None
+
+        # Channel
+        if content[0].lower() == self.nick.lower():
+            # this is a private message - set the channel to the sender's nick
+            channel = nick.lower()
+        else:
+            channel = content[0].lower()
+
+        # Set up parsed message
+        # TODO: Do we really want to send the raw `prefix` and `command_params` here?
+        event = Event(bot=self.bot, conn=self, event_type=event_type, content=content, target=target,
+                          channel=channel, nick=nick, user=user, host=host, mask=mask, irc_raw=line,
+                          irc_prefix=prefix, irc_command=command, irc_paramlist=content,
+                          irc_ctcp_text=ctcp_text)
+
+        return event
+
     def _handle_PRIVMSG(self, message):
-        return Message(self, message)
+        return self._event_bridge(message)
+        # return Message(self, message)
 
     @asyncio.coroutine
     def read_event(self):
@@ -403,7 +455,7 @@ class IRCClient:
     # about the protocol and more about the dywypi interface
     def send_message(self, command, *args):
         message = IRCMessage(command, *args)
-        log.debug("sent: %r", message)
+        logger.debug("sent: %r", message)
         self._writer.write(message.render().encode(self.charset) + b'\r\n')
 
     def source_from_message(self, raw_message):
