@@ -62,6 +62,7 @@ class CloudBot:
 
         # stores each bot server connection
         self.connections = {}
+        self.networks = {}
 
         # for plugins
         self.logger = logger
@@ -133,12 +134,12 @@ class CloudBot:
 
         # TODO less hard-coded here would be nice
         clients = []
-        for network in self.connections.values():
+        for network in self.networks.values():
             clients.append(network.client_class(self, loop, network))
 
         # TODO hmm this feels slightly janky; should this all be done earlier
         # perhaps
-        self.current_clients = clients
+        self.connections = clients
 
         # TODO gracefully handle failed connections, and only bail entirely if
         # they all fail?
@@ -160,13 +161,13 @@ class CloudBot:
             # Evaluate all the tasks that completed (probably just one)
             for d in done:
                 event = yield from d
+                print("PLS PROCESS: ", d)
                 self.process(event)
-
 
 
     def add_network(self, network):
         # TODO check for dupes!
-        self.connections[network.name] = network
+        self.networks[network.name] = network
 
     def create_connections(self):
         """ Create a BotConnection for all the networks defined in the config """
