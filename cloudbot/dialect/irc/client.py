@@ -344,10 +344,11 @@ class IRCClient:
         print(message.prefix)
 
         command = message.command
-        content = message.args
+        args = message.args
+        content = " ".join(message.args)
         prefix = message.prefix
         line = message.prefix + " " + message.render()
-        nick = None
+        nick = "test"
         user = None
         host = None
         mask = None
@@ -371,17 +372,17 @@ class IRCClient:
             ctcp_text = None
 
         # Channel
-        if content[0].lower() == self.nick.lower():
+        if args[0].lower() == self.nick.lower():
             # this is a private message - set the channel to the sender's nick
             channel = nick.lower()
         else:
-            channel = content[0].lower()
+            channel = args[0].lower()
 
         # Set up parsed message
         # TODO: Do we really want to send the raw `prefix` and `command_params` here?
         event = Event(bot=self.bot, conn=self, event_type=event_type, content=content, target=target,
                           channel=channel, nick=nick, user=user, host=host, mask=mask, irc_raw=line,
-                          irc_prefix=prefix, irc_command=command, irc_paramlist=content,
+                          irc_prefix=prefix, irc_command=command, irc_paramlist=args,
                           irc_ctcp_text=ctcp_text)
 
         return event
