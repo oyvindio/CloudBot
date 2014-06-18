@@ -236,7 +236,7 @@ class CloudBot:
         yield from self.stop(reason=reason, restart=True)
 
 
-
+    @asyncio.coroutine
     def process(self, event):
         """
         :type event: Event
