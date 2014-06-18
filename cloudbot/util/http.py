@@ -2,6 +2,7 @@
 
 import http.cookiejar
 import json
+import warnings
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -61,6 +62,9 @@ def get_json(*args, **kwargs):
 
 def open(url, query_params=None, user_agent=None, post_data=None,
          referer=None, get_method=None, cookies=False, timeout=None, headers=None, **kwargs):
+
+    warnings.warn('The util module "http.py" is deprecated and will be removed in an upcoming release',
+                  DeprecationWarning)
     if query_params is None:
         query_params = {}
 

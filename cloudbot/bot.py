@@ -17,6 +17,9 @@ from cloudbot.event import Event, CommandEvent, RegexEvent, EventType
 from cloudbot.dialect.irc.client import IRCClient
 from cloudbot.util import botvars, formatting
 
+from cloudbot.state import Network
+from cloudbot.state import Server
+
 
 logger = logging.getLogger("cloudbot")
 
@@ -56,7 +59,7 @@ class CloudBot:
         self.stopped_future = asyncio.Future(loop=self.loop)
 
         # stores each bot server connection
-        self.connections = []
+        self.connections = {}
 
         # for plugins
         self.logger = logger
@@ -116,19 +119,36 @@ class CloudBot:
         self.loop.close()
         return restart
 
+    def add_network(self, network):
+        # TODO check for dupes!
+        self.connections[network.name] = network
+
     def create_connections(self):
         """ Create a BotConnection for all the networks defined in the config """
         for conf in self.config['connections']:
             # strip all spaces and capitalization from the connection name
             readable_name = conf['name']
             name = clean_name(readable_name)
-            nick = conf['nick']
-            server = conf['connection']['server']
-            port = conf['connection'].get('port', 6667)
 
-            self.connections.append(IRCClient(self, name, nick, config=conf, channels=conf['channels'],
-                                                  readable_name=readable_name, server=server, port=port,
-                                                  use_ssl=conf['connection'].get('ssl', False)))
+            # hardcoded, for now
+            client_class = IRCClient
+
+            network = Network(name)
+            network.add_preferred_nick(conf['nick'])
+
+            network.add_server(
+                conf['connection']['server'],
+                conf['connection'].get('port', 6667),
+                tls = conf['connection'].get('ssl', False),
+                password="",
+            )
+
+            for channel in conf['channels']:
+                network.add_autojoin(channel)
+
+            network.client_class = client_class
+            self.add_network(network)
+
             logger.debug("[{}] Created connection.".format(readable_name))
 
     @asyncio.coroutine
@@ -183,8 +203,18 @@ class CloudBot:
             # start plugin reloader
             self.reloader.start(os.path.abspath("plugins"))
 
-        # Connect to servers
-        yield from asyncio.gather(*[conn.connect() for conn in self.connections], loop=self.loop)
+        # TODO less hard-coded here would be nice
+        clients = []
+        for network in self.connections.values():
+            clients.append(network.client_class(self.loop, network))
+
+        # TODO hmm this feels slightly janky; should this all be done earlier
+        # perhaps
+        self.current_clients = clients
+
+        # TODO gracefully handle failed connections, and only bail entirely if
+        # they all fail?
+        yield from asyncio.gather(*[client.connect() for client in clients])
 
         # Run a manual garbage collection cycle, to clean up any unused objects created during initialization
         gc.collect()
