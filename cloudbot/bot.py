@@ -268,6 +268,7 @@ class CloudBot:
                 tasks.append(self.plugin_manager.launch(event_hook, Event(hook=event_hook, base_event=event)))
 
         if event.type is EventType.message:
+            print(event.content)
             # Commands
             if event.chan.lower() == event.nick.lower():  # private message, no command prefix
                 command_re = r'(?i)^(?:[{}]?|{}[,;:]+\s+)(\w+)(?:$|\s+)(.*)'.format(command_prefix, event.conn.nick)

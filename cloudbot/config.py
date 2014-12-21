@@ -90,10 +90,8 @@ class ConfigEventHandler(Trick):
         """
         self.bot = bot
         self.config = config
-        logger = config.logger
         Trick.__init__(self, *args, **kwargs)
 
     def on_any_event(self, event):
         if self.bot.running:
-            logger.info("Config changed, triggering reload.")
             self.config.load_config()

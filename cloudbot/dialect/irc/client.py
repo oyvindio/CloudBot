@@ -50,6 +50,8 @@ class IRCClient:
         self.bot = bot
         self.network = network
         self.config = network.config
+        self.name = "Test"
+        self.readable_name = "Test"
 
         # TODO should this be a param?  a property of the network?  or, more
         # likely, channel-specific and decoded separately and...
@@ -345,7 +347,7 @@ class IRCClient:
 
         command = message.command
         args = message.args
-        content = " ".join(message.args)
+        content = " ".join(message.args[1:])
         prefix = message.prefix
         line = message.prefix + " " + message.render()
         nick = "test"
