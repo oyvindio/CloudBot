@@ -347,7 +347,7 @@ class IRCClient:
 
         command = message.command
         args = message.args
-        content = " ".join(message.args[1:])
+        content = message.args[1]
         prefix = message.prefix
         line = message.prefix + " " + message.render()
         nick = "test"
@@ -409,7 +409,16 @@ class IRCClient:
     # TODO should this be part of the general client interface, or should there
     # be a separate thing that smooths out the details?
     @asyncio.coroutine
-    def say(self, target, message):
+    def message(self, target, message):
+        """Coroutine that sends a message to a target, which may be either a
+        `Channel` or a `Peer`.
+        """
+        self.send_message('PRIVMSG', target, message)
+
+    # TODO should this be part of the general client interface, or should there
+    # be a separate thing that smooths out the details?
+    @asyncio.coroutine
+    def action(self, target, message):
         """Coroutine that sends a message to a target, which may be either a
         `Channel` or a `Peer`.
         """

@@ -53,6 +53,8 @@ def potato(text, action):
     """<user> - makes <user> a tasty little potato"""
     text = text.strip()
 
+    print("potato called")
+
     if not re.match("^[A-Za-z0-9_|.-\]\[]*$", text.lower()):
         return "I cant make a tasty potato for that user!"
 
@@ -62,8 +64,8 @@ def potato(text, action):
     method = random.choice(['bakes', 'fries', 'boils', 'roasts'])
     side_dish = random.choice(['side salad', 'dollop of sour cream', 'piece of chicken', 'bowl of shredded bacon'])
 
-    action("{} a {} {} {} potato for {} and serves it with a small {}!".format(method, flavor, size, potato_type, text,
-                                                                               side_dish))
+    return "{} a {} {} {} potato for {} and serves it with a small {}!".format(method, flavor, size, potato_type, text,
+                                                                               side_dish)
 
 @asyncio.coroutine
 @hook.command()
